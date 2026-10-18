@@ -9,7 +9,7 @@
   const titles = { assistant: 'Assistente', tasks: 'Tarefas', memory: 'Memória', settings: 'Conexões' };
   let toastTimer, pendingTaskTitle = localStorage.getItem('yggdrasil.pending-task-title.v1') || '', awaitingTaskTitle = localStorage.getItem('yggdrasil.awaiting-task.v1') === 'true';
   function persistPendingTask() { try { if (pendingTaskTitle) localStorage.setItem('yggdrasil.pending-task-title.v1', pendingTaskTitle); else localStorage.removeItem('yggdrasil.pending-task-title.v1'); localStorage.setItem('yggdrasil.awaiting-task.v1', awaitingTaskTitle ? 'true' : 'false'); } catch {} }
-  function memoryTokens(value) { return String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').match(/[a-z0-9]{3,}/g) || []; }
+  function memoryTokens(value) { return String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z0-9]{3,}/g) || []; }
   function findRelevantMemories(query, limit = 5) { const terms = [...new Set(memoryTokens(query).filter(w => !['sobre','isso','essa','esse','para','como','qual','quais','lembra','lembrar','memoria','minhas','meus','voce','quero','preciso','quando','onde','porque','fazer','coisa','mais','muito'].includes(w)))]; return memories.map(m => { const words = new Set(memoryTokens(m.title + ' ' + m.content)); const overlap = terms.filter(t => words.has(t)).length; return { memory:m, score: overlap + (terms.length && terms.some(t => memoryTokens(m.title).includes(t)) ? 1.5 : 0) }; }).filter(x => x.score > 0).sort((a,b) => b.score-a.score || String(b.memory.createdAt).localeCompare(String(a.memory.createdAt))).slice(0,limit).map(x => x.memory); }
   function renderMemorySearch() { const input = $('#memorySearch'); if (!input) return; const query = input.value.trim().toLocaleLowerCase('pt-BR'); $('#memoryList .memory-card').forEach(card => { card.hidden = !!query && !card.textContent.toLocaleLowerCase('pt-BR').includes(query); }); }
   function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800); }
@@ -73,10 +73,10 @@
     if (awaitingTaskTitle && /^(sim|s|confirmo|pode salvar|salva|salvar|isso)$/i.test(lower)) {
       if (!pendingTaskTitle) return 'Ainda não tenho um título definido. Escreva a tarefa, por exemplo: "Preciso estudar matemática amanhã".';
 
-      const title = pendingTaskTitle; pendingTaskTitle = ''; awaitingTaskTitle = false; persistPendingTask();
+      const title = pendingTaskTitle;
       tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
-      if (!write(KEYS.tasks, tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
-      awaitingTaskTitle = false; renderTasks(); return 'Tarefa salva: "' + title + '". Você pode acompanhá-la na aba Tarefas.';
+      if (!write(KEYS.tasks, tasks)) { tasks.shift(); return 'Não consegui guardar a tarefa neste dispositivo. A confirmação continua pendente.'; }
+      pendingTaskTitle = ''; awaitingTaskTitle = false; persistPendingTask(); renderTasks(); return 'Tarefa salva: "' + title + '". Você pode acompanhá-la na aba Tarefas.';
     }
     if (awaitingTaskTitle && /^(não|nao|não precisa|nao precisa|cancela|cancelar)$/i.test(lower)) {
       pendingTaskTitle = ''; awaitingTaskTitle = false; persistPendingTask(); return 'Certo, não salvei a tarefa.';
@@ -94,6 +94,8 @@
       if (!write(KEYS.memory, memories)) return 'Não consegui guardar essa informação neste dispositivo.';
       renderMemories(); return 'Anotado na memória deste dispositivo: "' + content.slice(0,180) + '".';
     }
+    const recall = text.trim().match(/^(?:o que você lembra sobre|o que voce lembra sobre|o que sabe sobre|buscar na memória|buscar na memoria|procurar memória|procurar memoria)\s*(.*)$/i);
+    if (recall) { const query = recall[1].trim(); const found = findRelevantMemories(query); return found.length ? 'Encontrei estas memórias relevantes:\n' + found.map((m,i) => (i+1)+'. '+m.title+': '+m.content).join('\n') : 'Não encontrei memórias relacionadas a esse assunto. Você pode guardar uma usando “guardar memória: ...”.'; }
     const projectMemory = text.match(/\bmeu projeto pessoal se chama\s+(.+?)[.!?]*$/i);
     if (projectMemory) {
       const projectName = projectMemory[1].trim().replace(/[.!?]+$/, '');
