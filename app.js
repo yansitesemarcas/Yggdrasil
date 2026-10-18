@@ -115,6 +115,16 @@
     });
   }
   function renderMemories() {
+    let normalized = false;
+    memories.forEach(item => {
+      const title = String(item.title || '').trim(), content = String(item.content || '').trim();
+      if (!title || title.toLocaleLowerCase('pt-BR') === content.toLocaleLowerCase('pt-BR')) {
+        const project = content.match(/^meu projeto pessoal se chama\\s+(.+?)[.!?]*$/i);
+        item.title = project ? 'Projeto pessoal' : (content.split(/\\s+/).slice(0, 6).join(' ').slice(0, 52) || 'Memória');
+        normalized = true;
+      }
+    });
+    if (normalized) write(KEYS.memory, memories);
     $('#memoryCount').textContent = memories.length + (memories.length === 1 ? ' registro' : ' registros');
     const list = $('#memoryList'); list.replaceChildren();
     if (!memories.length) { list.innerHTML = '<div class="empty-state">Sua memória ainda está vazia.<br>Guarde aqui ideias e informações que queira manter neste aparelho.</div>'; return; }
