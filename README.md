@@ -1,36 +1,47 @@
 # Yggdrasil
 
-Assistente pessoal web, pensado primeiro para Android, com interface futurista, reconhecimento de voz em português brasileiro, respostas faladas e chat com IA.
+Assistente pessoal pensado primeiro para celular, com interface em português, conversa por texto, ditado por voz, tarefas, memória local e uma conexão opcional com um servidor de IA.
 
-## Estrutura
+**Repositório independente:** `yansitesemarcas/Yggdrasil`. Não faz parte do site Yan Serra Sites e Marcas.
 
-- `index.html`: interface principal.
-- `style.css`: visual responsivo.
-- `app.js`: microfone, conversa e síntese de voz.
-- `api/chat.js`: endpoint serverless para conversar com a API da OpenAI.
-- `manifest.json`: configuração para instalação como aplicativo web (PWA).
+## O que funciona na interface publicada
 
-## Publicar com IA na Vercel
+- Interface responsiva para Android e desktop.
+- Tarefas com criação, conclusão, filtros e exclusão.
+- Memória de notas local, com criação e exclusão.
+- Histórico de conversa salvo no navegador.
+- Exportação de tarefas, notas e histórico em JSON.
+- Ditado por voz quando o navegador oferece suporte e concede permissão.
+- Modo local sem servidor, com comandos básicos para registrar tarefas e notas.
+- Campo para configurar e testar um endpoint de IA hospedado separadamente.
+- PWA com manifesto e cache básico para abrir a interface offline depois da primeira visita.
 
-Este repositório é independente de `yan-serra-sites`. Importe **este repositório** (`yansitesemarcas/Yggdrasil`) na Vercel e deixe o diretório raiz como `.` (raiz do projeto).
+## Publicação no GitHub Pages
 
-Em **Settings → Environment Variables**, configure:
+O site está configurado para publicar a raiz da branch `main`:
 
-- `OPENAI_API_KEY`: sua chave secreta da API da OpenAI.
-- `OPENAI_MODEL` (opcional): um modelo disponível na sua conta. O padrão é `gpt-4o-mini`.
+`https://yansitesemarcas.github.io/Yggdrasil/`
 
-Depois faça o deploy e abra o endereço gerado pela Vercel. A interface chama `/api/chat`, então o frontend e o endpoint precisam estar no mesmo domínio.
+O GitHub Pages **não executa código Node.js** e não hospeda o endpoint de chat. O modo local funciona sem backend; respostas generativas exigem que o servidor abaixo seja hospedado em um serviço compatível com Node.js, fora do GitHub Pages. Não é necessário usar Vercel.
 
-**Segurança:** nunca coloque a chave da API em `app.js`, `index.html`, no GitHub ou em mensagens. Ela deve ficar somente nas variáveis de ambiente da hospedagem.
+## Servidor de IA
 
-## Teste local / limitações
+O código do servidor está em `server/`. Requer Node.js 20 ou superior.
 
-- Abra a interface em um navegador moderno, preferencialmente Chrome para Android, e permita o acesso ao microfone.
-- O reconhecimento de voz depende do suporte do navegador e de permissão HTTPS/microfone.
-- A voz usa a síntese de fala nativa do navegador. ElevenLabs, memória persistente e automações externas ainda não estão implementados.
-- O GitHub Pages só hospeda arquivos estáticos; não executa `api/chat.js`. Para chat real com IA, use uma hospedagem com funções serverless, como a Vercel.
-- O uso da API pode gerar custos, dependendo da conta e do consumo.
+1. Hospede a pasta `server` em um serviço Node.js compatível (por exemplo, Render ou Railway).
+2. Configure as variáveis de ambiente no serviço:
+   - `OPENAI_API_KEY`: chave secreta do provedor, apenas no servidor.
+   - `OPENAI_MODEL`: modelo habilitado na sua conta (padrão: `gpt-4o-mini`).
+   - `ALLOWED_ORIGIN`: origem do site, por exemplo `https://yansitesemarcas.github.io`.
+   - `PORT`: normalmente fornecida pelo serviço.
+3. Copie a URL HTTPS do endpoint `/api/chat`.
+4. No site, abra **Conexões**, cole a URL completa e salve. Use **Testar conexão**.
 
-## Estado atual
+A chave da API nunca deve ser colocada no frontend, no repositório público ou no navegador. O uso do provedor pode gerar custos.
 
-Protótipo funcional de interface e integração por voz. A conversa com IA só funciona depois que a aplicação é implantada com `OPENAI_API_KEY` configurada no servidor.
+## Limitações honestas
+
+- Memória, tarefas e histórico ficam no armazenamento local daquele navegador/dispositivo; não são sincronizados entre dispositivos nem criptografados por esta versão.
+- O modo local não é um modelo de IA. Ele executa comandos simples e informa quando não há backend conectado.
+- Ditado depende do suporte do navegador e de permissão para microfone.
+- A configuração do endpoint não hospeda o servidor automaticamente: ela apenas conecta a interface a um servidor que já esteja funcionando.
