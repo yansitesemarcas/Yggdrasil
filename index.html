@@ -1,30 +1,89 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#071018"><meta name="description" content="Yggdrasil, assistente pessoal por voz">
-<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css"><title>Yggdrasil</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080d12">
+  <meta name="description" content="Yggdrasil: assistente pessoal, tarefas e memória local.">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="stylesheet" href="./style.css?v=20261018-1">
+  <title>Yggdrasil · Seu espaço</title>
 </head>
 <body>
-<main class="app">
-<header><div class="mark">ᛉ</div><div><p class="eyebrow">ASSISTENTE PESSOAL</p><h1>Yggdrasil</h1></div><span class="dot" id="dot"></span></header>
-<section class="core-wrap"><div class="ring ring-a"></div><div class="ring ring-b"></div><button id="talk" class="core" type="button"><span class="symbol">ᛟ</span><span id="coreLabel">ATIVAR</span></button></section>
-<p id="status" class="status" role="status">Sistema pronto</p>
-<section class="conversation"><p class="eyebrow">CONVERSA</p><div id="messages"><article class="message"><b>YG</b><p>Sistemas online. Toque no núcleo e fale comigo.</p></article></div></section>
-<p class="foot">PROTÓTIPO INICIAL · YGGDRASIL</p>
-</main>
-<script>
-(function () {
-  const button = document.getElementById('talk');
-  const status = document.getElementById('status');
-  button.addEventListener('click', function () {
-    window.setTimeout(function () {
-      if (status.textContent.trim() === 'Sistema pronto') {
-        status.textContent = 'Toque recebido, mas o assistente não iniciou. A versão publicada pode estar desatualizada ou o app.js falhou.';
-      }
-    }, 150);
-  }, true);
-})();
-</script>
-<script src="app.js?v=20261015-2" onerror="document.getElementById('status').textContent='Erro: app.js não carregou. Confira a pasta raiz configurada na Vercel.'"></script>
-</body></html>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="./" aria-label="Yggdrasil início">
+        <span class="brand-mark">ᛉ</span><span><strong>YGGDRASIL</strong><small>PERSONAL INTELLIGENCE</small></span>
+      </a>
+      <div class="profile"><div class="avatar">Y</div><div><strong>Seu espaço</strong><small>Armazenamento neste dispositivo</small></div></div>
+      <nav class="nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-view="assistant"><span>◉</span> Assistente</button>
+        <button class="nav-item" data-view="tasks"><span>✓</span> Tarefas <span id="taskCount" class="nav-count">0</span></button>
+        <button class="nav-item" data-view="memory"><span>⌘</span> Memória</button>
+        <button class="nav-item" data-view="settings"><span>⚙</span> Conexões</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="status-led"></span><span id="connectionLabel">Modo local ativo</span><p>Seus dados locais ficam neste navegador.</p></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">SISTEMA PESSOAL</p><h1 id="pageTitle">Assistente</h1></div>
+        <button class="icon-button mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
+        <div class="top-status"><span class="status-led"></span><span id="topStatus">Operação local</span></div>
+      </header>
+
+      <section class="view active" id="view-assistant">
+        <div class="welcome">
+          <div class="welcome-copy"><span class="overline">NÚCLEO YGGDRASIL <span class="tiny-dot"></span></span>
+            <h2>Seu espaço.<br><em>Sua direção.</em></h2>
+            <p>Organize ideias, registre o que importa e mantenha suas tarefas em movimento.</p>
+          </div>
+          <div class="tree-orb" aria-hidden="true"><div class="orb-ring ring-1"></div><div class="orb-ring ring-2"></div><div class="orb-core">ᛟ</div><span class="orb-node node-1"></span><span class="orb-node node-2"></span><span class="orb-node node-3"></span></div>
+        </div>
+        <div class="quick-grid">
+          <button class="quick-card" data-prompt="Me ajude a organizar minhas prioridades de hoje."><span class="quick-icon">↗</span><strong>Organizar prioridades</strong><small>Transforme ideias em próximos passos</small></button>
+          <button class="quick-card" data-prompt="Me ajude a dividir um objetivo grande em etapas pequenas."><span class="quick-icon">⌘</span><strong>Planejar um objetivo</strong><small>Divida o trabalho em etapas</small></button>
+          <button class="quick-card" data-prompt="Como posso usar a memória e as tarefas da Yggdrasil?"><span class="quick-icon">✳</span><strong>Explorar o sistema</strong><small>Veja o que já funciona localmente</small></button>
+        </div>
+        <div class="chat-panel">
+          <div class="section-heading"><div><p class="eyebrow">SEU CANAL</p><h3>Conversa</h3></div><span class="local-pill" id="chatMode">MODO LOCAL</span></div>
+          <div id="messages" class="messages" aria-live="polite">
+            <article class="message assistant-message"><div class="message-avatar">ᛉ</div><div><strong>Yggdrasil</strong><p>Estou pronta para ajudar a organizar seu espaço. Sem conexão com um provedor de IA, consigo manter tarefas e notas localmente; para respostas generativas, configure um servidor na área Conexões.</p><small>Agora · sessão local</small></div></article>
+          </div>
+          <form id="chatForm" class="composer">
+            <label class="sr-only" for="messageInput">Mensagem</label>
+            <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Escreva sua mensagem..." autocomplete="off"></textarea>
+            <div class="composer-actions"><span id="inputHint">Enter para enviar · Shift + Enter para nova linha</span><div><button type="button" id="voiceButton" class="icon-button" aria-label="Ditado por voz" title="Ditado por voz">♩</button><button type="submit" class="send-button">Enviar <span>↑</span></button></div></div>
+          </form>
+        </div>
+      </section>
+
+      <section class="view" id="view-tasks">
+        <div class="intro-row"><div><p class="eyebrow">EXECUÇÃO</p><h2>Suas tarefas</h2><p class="muted">Pequenos passos, registrados e guardados neste dispositivo.</p></div><span class="large-stat" id="taskStats">0 <small>pendentes</small></span></div>
+        <form id="taskForm" class="add-form"><label class="sr-only" for="taskInput">Nova tarefa</label><input id="taskInput" maxlength="180" placeholder="Ex.: estudar por 30 minutos" required><button class="primary-button" type="submit">+ Adicionar tarefa</button></form>
+        <div class="filter-row"><div class="filter-tabs"><button type="button" class="filter active" data-filter="all">Todas</button><button type="button" class="filter" data-filter="open">Pendentes</button><button type="button" class="filter" data-filter="done">Concluídas</button></div><button type="button" id="clearDone" class="text-button">Limpar concluídas</button></div>
+        <div id="taskList" class="task-list"></div>
+      </section>
+
+      <section class="view" id="view-memory">
+        <div class="intro-row"><div><p class="eyebrow">CONTEXTO PESSOAL</p><h2>Memória local</h2><p class="muted">Notas que você decide guardar. Nada é enviado automaticamente para um servidor.</p></div><span class="memory-symbol">⌘</span></div>
+        <form id="memoryForm" class="memory-form"><label for="memoryTitle">Título</label><input id="memoryTitle" maxlength="100" placeholder="Ex.: Ideia para meu projeto" required><label for="memoryContent">Conteúdo</label><textarea id="memoryContent" rows="4" maxlength="3000" placeholder="Registre uma ideia, preferência ou informação útil..." required></textarea><button class="primary-button" type="submit">Guardar na memória</button></form>
+        <div class="section-heading memory-heading"><div><p class="eyebrow">REGISTROS</p><h3>O que você guardou</h3></div><span class="muted" id="memoryCount">0 registros</span></div>
+        <div id="memoryList" class="memory-list"></div>
+      </section>
+
+      <section class="view" id="view-settings">
+        <div class="intro-row"><div><p class="eyebrow">CONFIGURAÇÃO</p><h2>Conexões</h2><p class="muted">A interface está no GitHub Pages. A IA precisa de um backend separado.</p></div><span class="settings-symbol">⚙</span></div>
+        <div class="settings-card"><div class="settings-card-head"><div><span class="settings-icon">⌁</span><div><h3>Servidor de IA</h3><p>Endpoint compatível com a API da Yggdrasil</p></div></div><span id="apiBadge" class="local-pill">NÃO CONFIGURADO</span></div>
+          <form id="settingsForm"><label for="apiUrl">URL completa do endpoint de chat</label><input id="apiUrl" type="url" inputmode="url" placeholder="https://seu-servidor.example/api/chat" autocomplete="url"><p class="field-help">Use a URL HTTPS do servidor que você controla. Não coloque chaves secretas neste campo nem no código público.</p><button class="primary-button" type="submit">Salvar conexão</button><button class="secondary-button" type="button" id="testConnection">Testar conexão</button><p id="connectionFeedback" class="feedback" role="status"></p></form>
+        </div>
+        <div class="settings-card"><div class="settings-card-head"><div><span class="settings-icon">◈</span><div><h3>Dados neste dispositivo</h3><p>Tarefas, notas e histórico de conversa ficam no armazenamento do navegador.</p></div></div></div><div class="data-actions"><button class="secondary-button" id="exportData" type="button">Exportar meus dados</button><button class="danger-button" id="clearChat" type="button">Limpar conversa</button></div><p class="field-help">Limpar os dados do navegador ou usar outro aparelho pode tornar os registros locais indisponíveis. Exporte uma cópia para guardar.</p></div>
+        <div class="notice"><strong>Estado real do sistema</strong><p>A interface e os recursos locais funcionam sem servidor. Respostas de IA dependem de um backend configurado, de uma chave válida no servidor e de acesso ao provedor escolhido.</p></div>
+      </section>
+      <footer class="footer"><span>YGGDRASIL <span class="footer-dot">·</span> ESPAÇO PESSOAL</span><span>Protótipo em evolução <span class="footer-dot">·</span> seus dados, seu controle</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js?v=20261018-1"></script>
+</body>
+</html>
