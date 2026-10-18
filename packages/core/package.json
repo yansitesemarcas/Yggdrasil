@@ -1,0 +1,7 @@
+{
+  "name": "@yggdrasil/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Núcleo compartilhado de intenções e validação da Yggdrasil"
+}
