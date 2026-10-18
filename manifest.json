@@ -4,10 +4,10 @@
   "description": "Assistente pessoal com memória, tarefas e funcionamento offline.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "browser",
   "orientation": "any",
-  "background_color": "#080d12",
-  "theme_color": "#080d12",
+  "background_color": "#050912",
+  "theme_color": "#050912",
   "lang": "pt-BR",
   "icons": [
     {
