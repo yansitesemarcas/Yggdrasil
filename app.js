@@ -3,14 +3,74 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const KEYS = { tasks: 'yggdrasil.tasks.v2', memory: 'yggdrasil.memory.v2', chat: 'yggdrasil.chat.v2', endpoint: 'yggdrasil.endpoint.v2', model: 'yggdrasil.model.v1', shareContext: 'yggdrasil.share-context.v1' };
+  const CLOUD_API = 'https://yggdrasil.yan-sitesemarcas.workers.dev';
+  let cloudToken = localStorage.getItem('yggdrasil.cloud-token.v1') || '', cloudEmail = localStorage.getItem('yggdrasil.cloud-email.v1') || '', cloudSyncTimer = null, cloudSyncRunning = false;
   const read = (key, fallback) => { try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; } };
-  const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
+  const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); if ((key === KEYS.tasks || key === KEYS.memory) && cloudToken) { clearTimeout(cloudSyncTimer); cloudSyncTimer = setTimeout(() => syncCloudData(false), 900); } return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
   let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openrouter/free', taskFilter = 'all', listening = false, recognition = null;
   const titles = { assistant: 'Assistente', tasks: 'Tarefas', memory: 'Memória', settings: 'Conexões' };
   let toastTimer, pendingTaskTitle = localStorage.getItem('yggdrasil.pending-task-title.v1') || '', awaitingTaskTitle = localStorage.getItem('yggdrasil.awaiting-task.v1') === 'true';
   function persistPendingTask() { try { if (pendingTaskTitle) localStorage.setItem('yggdrasil.pending-task-title.v1', pendingTaskTitle); else localStorage.removeItem('yggdrasil.pending-task-title.v1'); localStorage.setItem('yggdrasil.awaiting-task.v1', awaitingTaskTitle ? 'true' : 'false'); } catch {} }
   function memoryTokens(value) { return String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[a-z0-9]{3,}/g) || []; }
   function findRelevantMemories(query, limit = 5) { const terms = [...new Set(memoryTokens(query).filter(w => !['sobre','isso','essa','esse','para','como','qual','quais','lembra','lembrar','memoria','minhas','meus','voce','quero','preciso','quando','onde','porque','fazer','coisa','mais','muito'].includes(w)))]; return memories.map(m => { const words = new Set(memoryTokens(m.title + ' ' + m.content)); const overlap = terms.filter(t => words.has(t)).length; return { memory:m, score: overlap + (terms.length && terms.some(t => memoryTokens(m.title).includes(t)) ? 1.5 : 0) }; }).filter(x => x.score > 0).sort((a,b) => b.score-a.score || String(b.memory.createdAt).localeCompare(String(a.memory.createdAt))).slice(0,limit).map(x => x.memory); }
+  function updateCloudUI(message = '') {
+    const badge = $('#cloudBadge');
+    if (badge) badge.textContent = cloudToken ? 'CONECTADO' : 'DESCONECTADO';
+    if ($('#cloudSync')) $('#cloudSync').disabled = !cloudToken;
+    if ($('#cloudLogout')) $('#cloudLogout').hidden = !cloudToken;
+    if ($('#cloudEmail')) $('#cloudEmail').value = cloudEmail || $('#cloudEmail').value;
+    if ($('#cloudFeedback') && message) $('#cloudFeedback').textContent = message;
+  }
+  async function cloudRequest(path, options = {}) {
+    const headers = { 'Content-Type':'application/json', ...(options.headers || {}) };
+    if (cloudToken) headers.Authorization = 'Bearer ' + cloudToken;
+    const response = await fetch(CLOUD_API + path, { ...options, headers });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'Servidor respondeu com status ' + response.status + '.');
+    return data;
+  }
+  async function authenticateCloud(mode) {
+    const email = ($('#cloudEmail')?.value || '').trim().toLowerCase();
+    const password = $('#cloudPassword')?.value || '';
+    if (!email || !password) { updateCloudUI('Preencha e-mail e senha para continuar.'); return; }
+    if (mode === 'register' && password.length < 10) { updateCloudUI('Use uma senha com pelo menos 10 caracteres.'); return; }
+    $('#cloudRegister').disabled = true; $('#cloudLogin').disabled = true;
+    updateCloudUI(mode === 'register' ? 'Criando conta segura…' : 'Entrando na conta…');
+    try {
+      const data = await cloudRequest('/api/auth/' + mode, { method:'POST', body:JSON.stringify({email,password}), headers:{} });
+      cloudToken = data.token; cloudEmail = data.email || email;
+      localStorage.setItem('yggdrasil.cloud-token.v1',cloudToken);
+      localStorage.setItem('yggdrasil.cloud-email.v1',cloudEmail);
+      $('#cloudPassword').value = '';
+      const remote = await cloudRequest('/api/data');
+      const merge = (local, remoteItems) => {
+        const byId = new Map();
+        [...remoteItems, ...local].forEach(item => { if (item && item.id) byId.set(item.id,item); });
+        return [...byId.values()].sort((a,b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+      };
+      tasks = merge(tasks, Array.isArray(remote.tasks) ? remote.tasks : []);
+      memories = merge(memories, Array.isArray(remote.memories) ? remote.memories : []);
+      write(KEYS.tasks,tasks); write(KEYS.memory,memories);
+      renderTasks(); renderMemories();
+      updateCloudUI('Conta conectada. Dados locais e da nuvem foram combinados; a sincronização automática está ativa.');
+      await syncCloudData(false);
+    } catch (error) {
+      updateCloudUI('Não consegui acessar a conta: ' + error.message);
+    } finally { $('#cloudRegister').disabled = false; $('#cloudLogin').disabled = false; }
+  }
+  async function syncCloudData(showMessage = true) {
+    if (!cloudToken || cloudSyncRunning) return;
+    cloudSyncRunning = true;
+    try {
+      const result = await cloudRequest('/api/data',{method:'PUT',body:JSON.stringify({tasks,memories})});
+      if (showMessage) updateCloudUI('Sincronização concluída. ' + result.taskCount + ' tarefa(s) e ' + result.memoryCount + ' memória(s) guardadas na nuvem.');
+    } catch (error) {
+      if (/Sessão inválida|expirada/i.test(error.message)) {
+        cloudToken=''; localStorage.removeItem('yggdrasil.cloud-token.v1');
+        updateCloudUI('Sua sessão expirou. Entre novamente para sincronizar.');
+      } else if (showMessage) updateCloudUI('Falha na sincronização: ' + error.message);
+    } finally { cloudSyncRunning = false; }
+  }
   function renderMemorySearch() { const input = $('#memorySearch'); if (!input) return; const query = input.value.trim().toLocaleLowerCase('pt-BR'); $$('#memoryList .memory-card').forEach(card => { card.hidden = !!query && !card.textContent.toLocaleLowerCase('pt-BR').includes(query); }); }
   function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800); }
   function safeDate(value) { try { return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }); } catch { return ''; } }
@@ -216,6 +276,11 @@
   $('#taskForm').addEventListener('submit', e => { e.preventDefault(); const input = $('#taskInput'), title = input.value.trim(); if (!title) return; tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title, done:false, createdAt:new Date().toISOString() }); if(write(KEYS.tasks,tasks)){ input.value=''; renderTasks(); toast('Tarefa adicionada.'); } });
   $$('.filter').forEach(btn => btn.addEventListener('click', () => { taskFilter=btn.dataset.filter; $$('.filter').forEach(b=>b.classList.toggle('active',b===btn)); renderTasks(); }));
   $('#clearDone').addEventListener('click', () => { tasks=tasks.filter(t=>!t.done); write(KEYS.tasks,tasks); renderTasks(); toast('Tarefas concluídas removidas.'); });
+  $('#cloudRegister')?.addEventListener('click', () => authenticateCloud('register'));
+  $('#cloudLogin')?.addEventListener('click', () => authenticateCloud('login'));
+  $('#cloudSync')?.addEventListener('click', () => syncCloudData(true));
+  $('#cloudLogout')?.addEventListener('click', () => { cloudToken=''; cloudEmail=''; localStorage.removeItem('yggdrasil.cloud-token.v1'); localStorage.removeItem('yggdrasil.cloud-email.v1'); updateCloudUI('Você saiu da conta. Os dados locais continuam neste aparelho.'); });
+  if (cloudToken) updateCloudUI('Sessão encontrada. Sincronizando dados…');
   $('#memorySearch')?.addEventListener('input', renderMemorySearch);
   $('#memoryForm').addEventListener('submit', e => { e.preventDefault(); const title=$('#memoryTitle').value.trim(), content=$('#memoryContent').value.trim(); if(!title||!content)return; memories.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),title,content,createdAt:new Date().toISOString()}); if(write(KEYS.memory,memories)){ $('#memoryTitle').value=''; $('#memoryContent').value=''; renderMemories(); toast('Nota guardada neste dispositivo.'); } });
   function refreshEndpointUI() { const share=$('#shareContext'); if(share) share.checked=localStorage.getItem(KEYS.shareContext)==='true'; $('#apiUrl').value=endpoint; if ($('#modelSelect')) $('#modelSelect').value=selectedModel; const configured=!!endpoint; $('#apiBadge').textContent=configured?'CONFIGURADO':'NÃO CONFIGURADO'; $('#apiBadge').style.color=configured?'var(--cyan)':'var(--gold)'; $('#chatMode').textContent=configured?'IA CONFIGURADA':'MODO LOCAL'; $('#connectionLabel').textContent=configured?'Endpoint configurado':'Modo local ativo'; $('#topStatus').textContent=configured?'Conexão configurada':'Operação local'; }
@@ -236,13 +301,11 @@
     try{recognition.start();}catch{toast('Aguarde um instante e tente novamente.');}
   });
   renderTasks(); renderMemories(); renderHistory(); refreshEndpointUI();
+  if (cloudToken) syncCloudData(false);
   const requestedView = new URLSearchParams(location.search).get('view');
   if (['assistant','tasks','memory','settings'].includes(requestedView)) showView(requestedView);
   if (awaitingTaskTitle && pendingTaskTitle) toast('Há uma tarefa aguardando sua confirmação: ' + pendingTaskTitle);
-  let installPrompt = null;
   const installButton = $('#installAppButton');
-  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; if (installButton) { installButton.hidden = false; installButton.textContent = 'Instalar app'; } });
-  window.addEventListener('appinstalled', () => { installPrompt = null; if (installButton) installButton.hidden = true; toast('YGGDRASIL instalado no dispositivo.'); });
-  installButton?.addEventListener('click', async () => { if (installPrompt) { installPrompt.prompt(); const choice = await installPrompt.userChoice; if (choice?.outcome === 'accepted') toast('Instalação iniciada.'); installPrompt = null; if (installButton) installButton.hidden = true; } else { toast('No Chrome: toque em ⋮ e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.'); } });
+  installButton?.addEventListener('click', () => toast('No Chrome, toque em ⋮ e escolha “Adicionar à tela inicial”. Isso cria um atalho para o site, não instala um APK.'));
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();
