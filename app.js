@@ -67,6 +67,7 @@
       const del = document.createElement('button'); del.className = 'delete-button'; del.type = 'button'; del.textContent = 'Excluir'; del.addEventListener('click', () => { memories = memories.filter(m => m.id !== item.id); write(KEYS.memory, memories); renderMemories(); toast('Registro removido.'); });
       foot.append(date,del); card.append(h,p,foot); list.append(card);
     });
+    renderMemorySearch();
   }
   function handleLocalCommand(text) {
     const lower = text.toLocaleLowerCase('pt-BR').trim();
