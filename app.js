@@ -301,7 +301,23 @@
     try{recognition.start();}catch{toast('Aguarde um instante e tente novamente.');}
   });
   renderTasks(); renderMemories(); renderHistory(); refreshEndpointUI();
-  if (cloudToken) syncCloudData(false);
+  if (cloudToken) (async () => {
+    try {
+      const remote = await cloudRequest('/api/data');
+      const merge = (local, remoteItems) => {
+        const byId = new Map();
+        [...(Array.isArray(remoteItems) ? remoteItems : []), ...local].forEach(item => { if (item && item.id) byId.set(item.id,item); });
+        return [...byId.values()].sort((a,b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+      };
+      tasks = merge(tasks, remote.tasks); memories = merge(memories, remote.memories);
+      write(KEYS.tasks,tasks); write(KEYS.memory,memories); renderTasks(); renderMemories();
+      await syncCloudData(false);
+      updateCloudUI('Sessão restaurada. Dados locais e da nuvem estão sincronizados.');
+    } catch (error) {
+      if (/Sessão inválida|expirada/i.test(error.message)) { cloudToken=''; localStorage.removeItem('yggdrasil.cloud-token.v1'); updateCloudUI('Sua sessão expirou. Entre novamente para sincronizar.'); }
+      else updateCloudUI('Não consegui restaurar os dados da nuvem: ' + error.message);
+    }
+  })();
   const requestedView = new URLSearchParams(location.search).get('view');
   if (['assistant','tasks','memory','settings'].includes(requestedView)) showView(requestedView);
   if (awaitingTaskTitle && pendingTaskTitle) toast('Há uma tarefa aguardando sua confirmação: ' + pendingTaskTitle);
