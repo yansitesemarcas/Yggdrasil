@@ -55,7 +55,7 @@ async function askAI(text) {
     speak(answer);
   } catch (error) {
     const message = error.message.includes('<!DOCTYPE') || error.message.includes('Unexpected token')
-      ? 'A interface está aberta, mas a API ainda não está publicada neste endereço. Hospede o projeto na Vercel e configure a chave da IA.'
+      ? 'A interface está publicada, mas o chat com IA precisa de um backend separado. O GitHub Pages hospeda apenas arquivos estáticos.'
       : error.message;
     add(message);
     status('IA não conectada');
