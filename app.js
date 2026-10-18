@@ -2,7 +2,7 @@
   'use strict';
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const KEYS = { tasks: 'yggdrasil.tasks.v2', memory: 'yggdrasil.memory.v2', chat: 'yggdrasil.chat.v2', endpoint: 'yggdrasil.endpoint.v2', model: 'yggdrasil.model.v1' };
+  const KEYS = { tasks: 'yggdrasil.tasks.v2', memory: 'yggdrasil.memory.v2', chat: 'yggdrasil.chat.v2', endpoint: 'yggdrasil.endpoint.v2', model: 'yggdrasil.model.v1', shareContext: 'yggdrasil.share-context.v1' };
   const read = (key, fallback) => { try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; } };
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
   let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openrouter/free', taskFilter = 'all', listening = false, recognition = null;
@@ -64,6 +64,40 @@
       foot.append(date,del); card.append(h,p,foot); list.append(card);
     });
   }
+  function handleLocalCommand(text) {
+    const lower = text.toLocaleLowerCase('pt-BR').trim();
+    const addTask = lower.match(/^(?:criar|adicionar|registrar) tarefa\s*:\s*(.+)$/i);
+    if (addTask) {
+      const title = text.slice(text.indexOf(':') + 1).trim();
+      if (!title) return 'Escreva o nome da tarefa depois dos dois-pontos.';
+      tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
+      if (!write(KEYS.tasks,tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
+      renderTasks(); return 'Tarefa criada: "' + title + '". Ela já aparece na aba Tarefas.';
+    }
+    if (/^(?:listar|mostrar|ver) tarefas$|^minhas tarefas$|^quais são minhas tarefas\??$/.test(lower)) {
+      const pending = tasks.filter(t => !t.done);
+      return pending.length ? 'Suas tarefas pendentes:\n' + pending.map((t,i) => (i+1)+'. '+t.title).join('\n') : 'Você não tem tarefas pendentes.';
+    }
+    const complete = lower.match(/^(?:concluir|finalizar|marcar como concluída) tarefa\s*:\s*(.+)$/i);
+    if (complete) {
+      const query = text.slice(text.indexOf(':')+1).trim().toLocaleLowerCase('pt-BR');
+      const task = tasks.find(t => !t.done && t.title.toLocaleLowerCase('pt-BR') === query) || tasks.find(t => !t.done && t.title.toLocaleLowerCase('pt-BR').includes(query));
+      if (!task) return 'Não encontrei uma tarefa pendente com esse nome. Use "listar tarefas" para ver os títulos.';
+      task.done = true; write(KEYS.tasks,tasks); renderTasks(); return 'Tarefa concluída: "' + task.title + '".';
+    }
+    const saveMemory = lower.match(/^(?:guardar|salvar|registrar) memória\s*:\s*(.+)$/i);
+    if (saveMemory) {
+      const content = text.slice(text.indexOf(':')+1).trim();
+      if (!content) return 'Escreva o que deseja guardar depois dos dois-pontos.';
+      memories.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: content.slice(0,60), content: content.slice(0,3000), createdAt: new Date().toISOString() });
+      if (!write(KEYS.memory,memories)) return 'Não consegui guardar a memória neste dispositivo.';
+      renderMemories(); return 'Memória guardada neste dispositivo: "' + content.slice(0,160) + '".';
+    }
+    if (/^(?:listar|mostrar|ver) memórias$|^minhas memórias$|^o que está guardado na memória\??$/.test(lower)) {
+      return memories.length ? 'Memórias guardadas:\n' + memories.slice(-10).map((m,i)=>(i+1)+'. '+m.title+': '+m.content).join('\n') : 'Sua memória local ainda está vazia.';
+    }
+    return null;
+  }
   function localAnswer(text) {
     const lower = text.toLocaleLowerCase('pt-BR');
     if (/^(oi|olá|ola|bom dia|boa tarde|boa noite|e aí|eai)/.test(lower)) return 'Olá. Estou funcionando em modo local. Posso registrar tarefas e guardar notas neste dispositivo. Para conversar com um modelo de IA de verdade, conecte um servidor em Conexões.';
@@ -91,10 +125,12 @@
     $('#messageInput').value = ''; $('#messageInput').style.height = 'auto';
     addMessage(message,'user'); const send = $('.send-button'); send.disabled = true; $('#topStatus').textContent = endpoint ? 'Conectando à IA' : 'Modo local';
     try {
+      const localResult = handleLocalCommand(message);
+      if (localResult !== null) { addMessage(localResult); return; }
       if (!endpoint) { await new Promise(resolve => setTimeout(resolve, 180)); addMessage(localAnswer(message)); }
       else {
         const prior = history.filter(m => m.role === 'user' || m.role === 'assistant').slice(-12,-1).map(m => ({ role: m.role, content: m.content }));
-        const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ message, history:prior, model:selectedModel }) });
+        const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ message, history:prior, model:selectedModel, context: $('#shareContext')?.checked ? { tasks: tasks.filter(t => !t.done).slice(0,20).map(t => ({ title: t.title, done: false })), memories: memories.slice(-10).map(m => ({ title: m.title, content: m.content.slice(0,500) })) } : null }) });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Servidor respondeu com status ' + response.status + '.');
         if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('O servidor não retornou o campo "reply".');
@@ -114,9 +150,10 @@
   $$('.filter').forEach(btn => btn.addEventListener('click', () => { taskFilter=btn.dataset.filter; $$('.filter').forEach(b=>b.classList.toggle('active',b===btn)); renderTasks(); }));
   $('#clearDone').addEventListener('click', () => { tasks=tasks.filter(t=>!t.done); write(KEYS.tasks,tasks); renderTasks(); toast('Tarefas concluídas removidas.'); });
   $('#memoryForm').addEventListener('submit', e => { e.preventDefault(); const title=$('#memoryTitle').value.trim(), content=$('#memoryContent').value.trim(); if(!title||!content)return; memories.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),title,content,createdAt:new Date().toISOString()}); if(write(KEYS.memory,memories)){ $('#memoryTitle').value=''; $('#memoryContent').value=''; renderMemories(); toast('Nota guardada neste dispositivo.'); } });
-  function refreshEndpointUI() { $('#apiUrl').value=endpoint; if ($('#modelSelect')) $('#modelSelect').value=selectedModel; const configured=!!endpoint; $('#apiBadge').textContent=configured?'CONFIGURADO':'NÃO CONFIGURADO'; $('#apiBadge').style.color=configured?'var(--cyan)':'var(--gold)'; $('#chatMode').textContent=configured?'IA CONFIGURADA':'MODO LOCAL'; $('#connectionLabel').textContent=configured?'Endpoint configurado':'Modo local ativo'; $('#topStatus').textContent=configured?'Conexão configurada':'Operação local'; }
+  function refreshEndpointUI() { const share=$('#shareContext'); if(share) share.checked=localStorage.getItem(KEYS.shareContext)==='true'; $('#apiUrl').value=endpoint; if ($('#modelSelect')) $('#modelSelect').value=selectedModel; const configured=!!endpoint; $('#apiBadge').textContent=configured?'CONFIGURADO':'NÃO CONFIGURADO'; $('#apiBadge').style.color=configured?'var(--cyan)':'var(--gold)'; $('#chatMode').textContent=configured?'IA CONFIGURADA':'MODO LOCAL'; $('#connectionLabel').textContent=configured?'Endpoint configurado':'Modo local ativo'; $('#topStatus').textContent=configured?'Conexão configurada':'Operação local'; }
+  $('#shareContext')?.addEventListener('change', e => { try { localStorage.setItem(KEYS.shareContext, e.target.checked ? 'true' : 'false'); } catch {} toast(e.target.checked ? 'Contexto pessoal será enviado nas próximas mensagens.' : 'Envio de contexto pessoal desativado.'); });
   $('#settingsForm').addEventListener('submit', e => { e.preventDefault(); selectedModel=$('#modelSelect')?.value || selectedModel; try { localStorage.setItem(KEYS.model,selectedModel); } catch {} const value=$('#apiUrl').value.trim(); if(value){ try { const u=new URL(value); if(u.protocol!=='https:' && u.hostname!=='localhost' && u.hostname!=='127.0.0.1') throw new Error('Use uma URL HTTPS para o servidor.'); } catch(err){ $('#connectionFeedback').textContent='URL inválida. Informe o endereço completo do endpoint, incluindo https://.'; return; } } endpoint=value; try { if(endpoint) localStorage.setItem(KEYS.endpoint,endpoint); else localStorage.removeItem(KEYS.endpoint); } catch {} refreshEndpointUI(); $('#connectionFeedback').textContent=endpoint?'Endereço salvo neste navegador. A chave secreta deve ficar no servidor.':'Conexão removida. O aplicativo seguirá em modo local.'; toast('Configuração atualizada.'); });
-  $('#testConnection').addEventListener('click', async () => { if(!endpoint){ $('#connectionFeedback').textContent='Configure primeiro a URL do endpoint.'; return; } $('#connectionFeedback').textContent='Testando endpoint…'; try { const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'Responda apenas: conexão OK.',history:[],model:selectedModel})}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Status HTTP '+r.status); if(typeof d.reply!=='string') throw new Error('O endpoint respondeu, mas não retornou "reply".'); $('#connectionFeedback').textContent='Conexão concluída. Modelo respondendo: '+(d.model||selectedModel)+'.'; } catch(err) { $('#connectionFeedback').textContent='Teste falhou: '+err.message+' Confira CORS e se o servidor está ativo.'; } });
+  $('#testConnection').addEventListener('click', async () => { if(!endpoint){ $('#connectionFeedback').textContent='Configure primeiro a URL do endpoint.'; return; } $('#connectionFeedback').textContent='Testando endpoint…'; try { const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'Responda apenas: conexão OK.',history:[],model:selectedModel,context:null})}); const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.error||'Status HTTP '+r.status); if(typeof d.reply!=='string') throw new Error('O endpoint respondeu, mas não retornou "reply".'); $('#connectionFeedback').textContent='Conexão concluída. Modelo respondendo: '+(d.model||selectedModel)+'.'; } catch(err) { $('#connectionFeedback').textContent='Teste falhou: '+err.message+' Confira CORS e se o servidor está ativo.'; } });
   $('#exportData').addEventListener('click', () => { const payload={exportedAt:new Date().toISOString(),tasks,memories,chat:history}; const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='yggdrasil-dados.json'; a.click(); URL.revokeObjectURL(url); toast('Exportação preparada.'); });
   $('#clearChat').addEventListener('click', () => { if(!confirm('Apagar o histórico de conversa deste dispositivo? Tarefas e memórias serão mantidas.')) return; history=[]; write(KEYS.chat,history); renderHistory(); toast('Conversa apagada.'); });
   $('#voiceButton').addEventListener('click', () => {
