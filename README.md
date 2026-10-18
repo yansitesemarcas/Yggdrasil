@@ -38,3 +38,21 @@ O endpoint de chat será `/api/chat` e o teste de saúde será `/health`. Config
 ## Estado atual
 
 A interface, tarefas e memória local rodam no navegador. O chat com modelos externos só funciona depois de hospedar o backend, adicionar a chave de API como segredo e configurar a URL do endpoint na interface. Não inclua chaves no repositório ou no GitHub Pages.
+
+
+## Implantação do backend pelo Cloudflare Workers
+
+O repositório inclui uma implementação Cloudflare Worker em `worker/`, para que o backend possa ser implantado a partir do GitHub sem colocar a chave no código.
+
+1. Abra o painel do [Cloudflare](https://dash.cloudflare.com/) e entre em **Workers & Pages**.
+2. Escolha **Create application** e depois a opção para importar/conectar um repositório Git.
+3. Selecione `yansitesemarcas/Yggdrasil`.
+4. Configure o diretório raiz do projeto como `worker` e use o arquivo `wrangler.jsonc`. O comando de implantação é `npx wrangler deploy`.
+5. Após criar o Worker, abra **Settings → Variables and Secrets → Add**.
+6. Escolha o tipo **Secret**, nome `OPENROUTER_API_KEY`, e cole a chave do OpenRouter no campo de valor. Salve e implante.
+7. Abra a URL `https://SEU-WORKER.workers.dev/health`. O resultado deve indicar `"ok": true` e `"provider": "openrouter"`.
+8. Na Yggdrasil, entre em **Conexões** e informe `https://SEU-WORKER.workers.dev/api/chat`, salve e toque em **Testar conexão**.
+
+Substitua `SEU-WORKER` pelo subdomínio mostrado pelo Cloudflare. Nunca coloque a chave no GitHub, no campo de URL do aplicativo ou em mensagens.
+
+O modelo inicial é `openrouter/free`, que seleciona um modelo gratuito disponível. Modelos gratuitos podem ter limites e ficar temporariamente indisponíveis. Outros modelos podem gerar cobrança. O nome e a disponibilidade dos modelos mudam; confira o catálogo do OpenRouter.
