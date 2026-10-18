@@ -66,6 +66,17 @@
   }
   function handleLocalCommand(text) {
     const lower = text.toLocaleLowerCase('pt-BR').trim();
+    const projectMemory = text.match(/\bmeu projeto pessoal se chama\s+(.+?)[.!?]*$/i);
+    if (projectMemory) {
+      const projectName = projectMemory[1].trim().replace(/[.!?]+$/, '');
+      const content = 'Meu projeto pessoal se chama ' + projectName + '.';
+      memories.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: 'Projeto pessoal', content, createdAt: new Date().toISOString() });
+      if (!write(KEYS.memory, memories)) return 'Não consegui guardar essa memória neste dispositivo.';
+      renderMemories(); return 'Memória guardada neste dispositivo: ' + content;
+    }
+    if (/^(?:criar|adicionar|nova|nova tarefa)(?: uma)? tarefa(?: pessoal)?$/.test(lower)) {
+      return 'Vamos criar essa tarefa. Envie o título assim: "criar tarefa: estudar para a prova".';
+    }
     const addTask = lower.match(/^(?:criar|adicionar|registrar) tarefa\s*:\s*(.+)$/i);
     if (addTask) {
       const title = text.slice(text.indexOf(':') + 1).trim();
@@ -134,7 +145,12 @@
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Servidor respondeu com status ' + response.status + '.');
         if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('O servidor não retornou o campo "reply".');
-        addMessage(data.reply.trim());
+        const cleanReply = data.reply.trim();
+        if (/^(?:user safety:\s*safe\s*\n?\s*response safety:\s*safe|response safety:\s*safe\s*\n?\s*user safety:\s*safe)[.!\s]*$/i.test(cleanReply)) {
+          addMessage('A IA retornou apenas um aviso técnico, sem responder à mensagem. Tente novamente ou use um comando local, como "guardar memória: meu projeto pessoal se chama Yggdrasil".');
+        } else {
+          addMessage(cleanReply);
+        }
       }
     } catch (error) {
       addMessage('Não consegui acessar o servidor de IA. ' + error.message + ' Confira a URL, o HTTPS, o CORS e se o backend está ativo.');
