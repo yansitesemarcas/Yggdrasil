@@ -217,6 +217,8 @@
     try{recognition.start();}catch{toast('Aguarde um instante e tente novamente.');}
   });
   renderTasks(); renderMemories(); renderHistory(); refreshEndpointUI();
+  const requestedView = new URLSearchParams(location.search).get('view');
+  if (['assistant','tasks','memory','settings'].includes(requestedView)) showView(requestedView);
   if (awaitingTaskTitle && pendingTaskTitle) toast('Há uma tarefa aguardando sua confirmação: ' + pendingTaskTitle);
   let installPrompt = null;
   const installButton = $('#installAppButton');
