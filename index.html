@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#080d12">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n  <link rel="icon" href="./assets/yggdrasil-icon.svg" type="image/svg+xml">\n  <link rel="apple-touch-icon" href="./assets/yggdrasil-icon.svg">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <link rel="icon" type="image/svg+xml" href="./icons/yggdrasil.svg">\n  <link rel="apple-touch-icon" href="./icons/yggdrasil.svg">
+  <meta name="theme-color" content="#080d12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="./assets/yggdrasil-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/yggdrasil-icon.svg">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n  <link rel="icon" href="./assets/yggdrasil-icon.svg" type="image/svg+xml">\n  <link rel="apple-touch-icon" href="./assets/yggdrasil-icon.svg">\n  <meta name="mobile-web-app-capable" content="yes">\n  <meta name="apple-mobile-web-app-capable" content="yes">\n  <link rel="icon" type="image/svg+xml" href="./icons/yggdrasil.svg">\n  <link rel="apple-touch-icon" href="./icons/yggdrasil.svg">
   <meta name="description" content="Yggdrasil: assistente pessoal, tarefas e memória local.">
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./style.css?v=20261018-3">
@@ -28,7 +33,8 @@
     <main class="main">
       <header class="topbar">
         <div><p class="eyebrow">SISTEMA PESSOAL</p><h1 id="pageTitle">Assistente</h1></div>
-        <button class="secondary-button install-button" id="installAppButton" type="button" hidden>Instalar app</button>\n        <button class="icon-button mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
+        <button class="secondary-button install-button" id="installAppButton" type="button" hidden>Instalar app</button>\n        <button class="secondary-button install-button" id="installAppButton" type="button" hidden>Instalar app</button>
+        <button class="icon-button mobile-menu" id="menuToggle" aria-label="Abrir menu">☰</button>
         <div class="top-status"><span class="status-led"></span><span id="topStatus">Operação local</span></div>
       </header>
 
@@ -68,7 +74,8 @@
       <section class="view" id="view-memory">
         <div class="intro-row"><div><p class="eyebrow">CONTEXTO PESSOAL</p><h2>Memória local</h2><p class="muted">Notas que você decide guardar. A busca encontra registros por palavras-chave; nada é enviado automaticamente.</p></div><span class="memory-symbol">⌘</span></div>
         <form id="memoryForm" class="memory-form"><label for="memoryTitle">Título</label><input id="memoryTitle" maxlength="100" placeholder="Ex.: Ideia para meu projeto" required><label for="memoryContent">Conteúdo</label><textarea id="memoryContent" rows="4" maxlength="3000" placeholder="Registre uma ideia, preferência ou informação útil..." required></textarea><button class="primary-button" type="submit">Guardar na memória</button></form>
-        <label class="sr-only" for="memorySearch">Buscar nas memórias</label><input id="memorySearch" class="memory-search" type="search" placeholder="Buscar nas memórias..." autocomplete="off">\n        <div class="section-heading memory-heading"><div><p class="eyebrow">REGISTROS</p><h3>O que você guardou</h3></div><span class="muted" id="memoryCount">0 registros</span></div>
+        <label class="sr-only" for="memorySearch">Buscar nas memórias</label><input id="memorySearch" class="memory-search" type="search" placeholder="Buscar nas memórias..." autocomplete="off">\n        <label class="sr-only" for="memorySearch">Buscar nas memórias</label><input id="memorySearch" class="memory-search" type="search" placeholder="Buscar nas memórias..." autocomplete="off">
+        <div class="section-heading memory-heading"><div><p class="eyebrow">REGISTROS</p><h3>O que você guardou</h3></div><span class="muted" id="memoryCount">0 registros</span></div>
         <div id="memoryList" class="memory-list"></div>
       </section>
 
