@@ -90,13 +90,32 @@
     }
     const naturalMemory = text.trim().match(/^(?:guarde que|lembre-se que|lembre que|salve que|anote que)\s+(.+?)[.!?]*$/i);
     if (naturalMemory) {
-      const content = naturalMemory[1].trim().replace(/[.!?]+$/, '');
-      memories.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: content.slice(0,60), content, createdAt: new Date().toISOString() });
+      let content = naturalMemory[1].trim().replace(/[.!?]+$/, '');
+      let title = '';
+      const project = content.match(/^meu projeto pessoal se chama\s+(.+)$/i);
+      const namedProject = content.match(/^meu projeto se chama\s+(.+)$/i);
+      const objective = content.match(/^(?:meu objetivo é|meu objetivo e)\s+(.+)$/i);
+      const preference = content.match(/^(?:minha preferência é|minha preferencia e|eu prefiro)\s+(.+)$/i);
+      if (project || namedProject) {
+        const name = (project || namedProject)[1].trim().replace(/[.!?]+$/, '');
+        title = project ? 'Projeto pessoal' : 'Projeto';
+        content = (project ? 'Meu projeto pessoal se chama ' : 'Meu projeto se chama ') + name + '.';
+      } else if (objective) {
+        title = 'Objetivo';
+        content = 'Meu objetivo é ' + objective[1].trim().replace(/[.!?]+$/, '') + '.';
+      } else if (preference) {
+        title = 'Preferência';
+        content = preference[1].trim().replace(/[.!?]+$/, '') + '.';
+      } else {
+        title = content.split(/\s+/).slice(0, 6).join(' ');
+        if (title.length > 52) title = title.slice(0, 49).trimEnd() + '…';
+      }
+      memories.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title, content, createdAt: new Date().toISOString() });
       if (!write(KEYS.memory, memories)) return 'Não consegui guardar essa informação neste dispositivo.';
       renderMemories(); return 'Anotado na memória deste dispositivo: "' + content.slice(0,180) + '".';
     }
     const recall = text.trim().match(/^(?:o que você lembra sobre|o que voce lembra sobre|o que sabe sobre|buscar na memória|buscar na memoria|procurar memória|procurar memoria)\s*(.*)$/i);
-    if (recall) { const query = recall[1].trim(); const found = findRelevantMemories(query); return found.length ? 'Encontrei estas memórias relevantes:\n' + found.map((m,i) => (i+1)+'. '+m.title+': '+m.content).join('\n') : 'Não encontrei memórias relacionadas a esse assunto. Você pode guardar uma usando “guardar memória: ...”.'; }
+    if (recall) { const query = recall[1].trim(); const found = findRelevantMemories(query); return found.length ? 'Encontrei estas memórias relevantes:\n' + found.map((m,i) => { const title = String(m.title || '').trim(); const content = String(m.content || '').trim(); const duplicate = !title || title.toLocaleLowerCase('pt-BR') === content.toLocaleLowerCase('pt-BR') || content.toLocaleLowerCase('pt-BR').startsWith(title.toLocaleLowerCase('pt-BR') + ':'); return (i+1)+'. '+(duplicate ? content : title+': '+content); }).join('\n') : 'Não encontrei memórias relacionadas a esse assunto. Você pode guardar uma usando “guarde que ...”.'; }
     const projectMemory = text.match(/\bmeu projeto pessoal se chama\s+(.+?)[.!?]*$/i);
     if (projectMemory) {
       const projectName = projectMemory[1].trim().replace(/[.!?]+$/, '');
