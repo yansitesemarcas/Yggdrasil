@@ -133,7 +133,7 @@ export default {
           ? content.map(part => part?.text || "").join("\n").trim()
           : "";
       if (!reply) return json({ error: "O provedor retornou uma resposta vazia." }, 502, origin);
-      if (/^(?:user safety:\\s*safe\\s*\\n?\\s*response safety:\\s*safe|response safety:\\s*safe\\s*\\n?\\s*user safety:\\s*safe)[.!\\s]*$/i.test(reply)) {
+      if (/^(?:user safety:\s*safe\s*\n?\s*response safety:\s*safe|response safety:\s*safe\s*\n?\s*user safety:\s*safe)[.!\s]*$/i.test(reply)) {
         return json({ reply: "O modelo selecionado retornou apenas um marcador técnico, sem responder. Tente novamente ou selecione outro modelo na aba Conexões.", model: data?.model || model, provider: "openrouter", degraded: true }, 200, origin);
       }
       return json({ reply, model: data?.model || model, provider: "openrouter" }, 200, origin);
