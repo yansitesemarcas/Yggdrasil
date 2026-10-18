@@ -1,6 +1,10 @@
 {
-  "name": "yggdrasil-assistant",
+  "name": "yggdrasil-personal-assistant",
   "private": true,
-  "version": "1.0.0",
-  "type": "module"
+  "version": "1.1.0",
+  "type": "module",
+  "description": "Yggdrasil static web app; the Node API is maintained in server/",
+  "scripts": {
+    "start:server": "npm --prefix server start"
+  }
 }
