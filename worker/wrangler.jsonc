@@ -3,5 +3,12 @@
   "name": "yggdrasil",
   "main": "src/index.js",
   "compatibility_date": "2026-10-18",
-  "workers_dev": true
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "MEMORY_DB",
+      "database_name": "yggdrasil-memory",
+      "database_id": "32fff9a3-6733-47d7-9faf-18fad130a8f2"
+    }
+  ]
 }
