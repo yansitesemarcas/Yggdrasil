@@ -1,0 +1,7 @@
+{
+  "$schema": "https://schemas.cloudflare.com/wrangler/config-schema.json",
+  "name": "yggdrasil-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-18",
+  "workers_dev": true
+}
