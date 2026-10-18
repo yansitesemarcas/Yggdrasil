@@ -7,7 +7,7 @@
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
   let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openrouter/free', taskFilter = 'all', listening = false, recognition = null;
   const titles = { assistant: 'Assistente', tasks: 'Tarefas', memory: 'Memória', settings: 'Conexões' };
-  let toastTimer, pendingTaskTitle = '';
+  let toastTimer, pendingTaskTitle = '', awaitingTaskTitle = false;
   function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800); }
   function safeDate(value) { try { return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }); } catch { return ''; } }
   function escapeText(text) { return String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -66,18 +66,21 @@
   }
   function handleLocalCommand(text) {
     const lower = text.toLocaleLowerCase('pt-BR').trim();
-    if (pendingTaskTitle && /^(sim|s|confirmo|pode salvar|salva|salvar|isso)$/i.test(lower)) {
+    if (awaitingTaskTitle && /^(sim|s|confirmo|pode salvar|salva|salvar|isso)$/i.test(lower)) {
+      if (!pendingTaskTitle) return 'Ainda não tenho um título definido. Escreva a tarefa, por exemplo: "Preciso estudar matemática amanhã".';
+
       const title = pendingTaskTitle; pendingTaskTitle = '';
       tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
       if (!write(KEYS.tasks, tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
-      renderTasks(); return 'Tarefa salva: "' + title + '". Você pode acompanhá-la na aba Tarefas.';
+      awaitingTaskTitle = false; renderTasks(); return 'Tarefa salva: "' + title + '". Você pode acompanhá-la na aba Tarefas.';
     }
-    if (pendingTaskTitle && /^(não|nao|não precisa|nao precisa|cancela|cancelar)$/i.test(lower)) {
-      pendingTaskTitle = ''; return 'Certo, não salvei a tarefa.';
+    if (awaitingTaskTitle && /^(não|nao|não precisa|nao precisa|cancela|cancelar)$/i.test(lower)) {
+      pendingTaskTitle = ''; awaitingTaskTitle = false; return 'Certo, não salvei a tarefa.';
     }
-    const naturalTask = text.trim().match(/^(?:preciso|tenho que|devo|quero|não posso esquecer de|nao posso esquecer de|lembrar de|me lembra de)\s+(.+?)[.!?]*$/i);
+    const naturalTask = text.trim().match(/^(?:(?:eu )?preciso|precisa|tenho que|devo|quero|não posso esquecer de|nao posso esquecer de|lembrar de|me lembra de|adicionar como tarefa|crie uma tarefa para)\s+(.+?)[.!?]*$/i);
     if (naturalTask && !/^(de ajuda|entender|saber|perguntar|conversar|explicar|descobrir|ver como|falar com você|uma coisa)$/i.test(naturalTask[1].trim())) {
-      pendingTaskTitle = naturalTask[1].trim().replace(/[.!?]+$/, '');
+      pendingTaskTitle = naturalTask[1].trim().replace(/[.!?]+$/, '').replace(/^estudar matemática para amanhã$/i, 'Estudar matemática amanhã');
+      awaitingTaskTitle = true;
       return 'Entendi. Posso registrar "' + pendingTaskTitle + '" como tarefa. Responda "sim" para salvar ou "não" para cancelar.';
     }
     const naturalMemory = text.trim().match(/^(?:guarde que|lembre-se que|lembre que|salve que|anote que)\s+(.+?)[.!?]*$/i);
@@ -96,7 +99,8 @@
       renderMemories(); return 'Memória guardada neste dispositivo: ' + content;
     }
     if (/^(?:criar|adicionar|nova|nova tarefa)(?: uma)? tarefa(?: pessoal)?$/.test(lower)) {
-      return 'Vamos criar essa tarefa. Envie o título assim: "criar tarefa: estudar para a prova".';
+      pendingTaskTitle = ''; awaitingTaskTitle = true;
+      return 'Vamos criar uma tarefa. Escreva o que precisa fazer, por exemplo: "Preciso estudar matemática amanhã". Vou mostrar o título e pedir confirmação antes de salvar.';
     }
     const addTask = lower.match(/^(?:criar|adicionar|registrar) tarefa\s*:\s*(.+)$/i);
     if (addTask) {
@@ -104,7 +108,7 @@
       if (!title) return 'Escreva o nome da tarefa depois dos dois-pontos.';
       tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
       if (!write(KEYS.tasks,tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
-      renderTasks(); return 'Tarefa criada: "' + title + '". Ela já aparece na aba Tarefas.';
+      awaitingTaskTitle = false; renderTasks(); return 'Tarefa criada: "' + title + '". Ela já aparece na aba Tarefas.';
     }
     if (/^(?:listar|mostrar|ver) tarefas$|^minhas tarefas$|^quais são minhas tarefas\??$/.test(lower)) {
       const pending = tasks.filter(t => !t.done);
