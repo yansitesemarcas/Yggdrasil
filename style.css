@@ -6,3 +6,11 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 /* Controles adicionais da seleção de modelos */
 .settings-card select{min-width:0;width:100%;border:1px solid var(--line2);border-radius:9px;background:#0c151b;color:var(--text);padding:12px;font:inherit;font-size:12px;color-scheme:dark}.settings-card select:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+
+/* Optional personal context sharing */
+.context-sharing{margin:18px 0;padding:14px 16px;border:1px solid var(--line2);border-radius:12px;background:rgba(128,229,220,.035)}
+.context-toggle{display:flex;align-items:flex-start;gap:12px;cursor:pointer}
+.context-toggle input{width:18px;height:18px;margin:3px 0 0;accent-color:var(--cyan);flex:0 0 auto}
+.context-toggle span{display:flex;flex-direction:column;gap:6px}
+.context-toggle strong{font-size:.9rem;color:var(--text)}
+.context-toggle small{font-size:.78rem;line-height:1.55;color:var(--muted)}
