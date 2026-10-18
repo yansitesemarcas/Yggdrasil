@@ -18,6 +18,102 @@ function json(data, status = 200, origin = "") {
   });
 }
 
+
+function toB64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function fromB64Url(value) {
+  const base = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(base + "=".repeat((4 - base.length % 4) % 4));
+  return Uint8Array.from(binary, c => c.charCodeAt(0));
+}
+async function passwordDigest(password, salt) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: fromB64Url(salt), iterations: 150000 }, key, 256);
+  return toB64Url(new Uint8Array(bits));
+}
+async function signSession(payload, secret) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const encoded = toB64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(encoded));
+  return encoded + "." + toB64Url(new Uint8Array(signature));
+}
+async function verifySession(token, secret) {
+  try {
+    const [encoded, signature] = String(token || "").split(".");
+    if (!encoded || !signature) return null;
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]);
+    const valid = await crypto.subtle.verify("HMAC", key, fromB64Url(signature), new TextEncoder().encode(encoded));
+    if (!valid) return null;
+    const payload = JSON.parse(new TextDecoder().decode(fromB64Url(encoded)));
+    return payload.exp > Math.floor(Date.now() / 1000) && typeof payload.sub === "string" ? payload.sub : null;
+  } catch { return null; }
+}
+async function accountIdFromRequest(request, env) {
+  const auth = request.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ") || !env.OPENROUTER_API_KEY) return null;
+  return verifySession(auth.slice(7), env.OPENROUTER_API_KEY);
+}
+async function handleAccountApi(request, env, url, origin) {
+  if (!env.MEMORY_DB) return json({ error: "Armazenamento em nuvem ainda não está configurado." }, 503, origin);
+  if (url.pathname === "/api/auth/register" && request.method === "POST") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Envie os dados da conta em JSON." }, 400, origin); }
+    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase().slice(0,254) : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Informe um e-mail válido." }, 400, origin);
+    if (password.length < 10 || password.length > 200) return json({ error: "Use uma senha com pelo menos 10 caracteres." }, 400, origin);
+    const saltBytes = crypto.getRandomValues(new Uint8Array(16));
+    const salt = toB64Url(saltBytes);
+    const hash = await passwordDigest(password, salt);
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    try {
+      await env.MEMORY_DB.prepare("INSERT INTO users (id,email,password_salt,password_hash,created_at) VALUES (?,?,?,?,?)").bind(id,email,salt,hash,createdAt).run();
+      await env.MEMORY_DB.prepare("INSERT INTO user_data (user_id,tasks_json,memories_json,updated_at) VALUES (?,?,?,?)").bind(id,"[]","[]",createdAt).run();
+      const token = await signSession({ sub:id, exp:Math.floor(Date.now()/1000)+2592000 }, env.OPENROUTER_API_KEY);
+      return json({ token, email, expiresIn:2592000 }, 201, origin);
+    } catch (error) {
+      if (/UNIQUE|constraint/i.test(String(error))) return json({ error: "Já existe uma conta com esse e-mail." }, 409, origin);
+      return json({ error: "Não consegui criar a conta agora." }, 500, origin);
+    }
+  }
+  if (url.pathname === "/api/auth/login" && request.method === "POST") {
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Envie os dados da conta em JSON." }, 400, origin); }
+    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase().slice(0,254) : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+    const user = await env.MEMORY_DB.prepare("SELECT id,email,password_salt,password_hash FROM users WHERE email = ?").bind(email).first();
+    if (!user) return json({ error: "E-mail ou senha incorretos." }, 401, origin);
+    const digest = await passwordDigest(password, user.password_salt);
+    if (digest !== user.password_hash) return json({ error: "E-mail ou senha incorretos." }, 401, origin);
+    const token = await signSession({ sub:user.id, exp:Math.floor(Date.now()/1000)+2592000 }, env.OPENROUTER_API_KEY);
+    return json({ token, email:user.email, expiresIn:2592000 }, 200, origin);
+  }
+  if (url.pathname === "/api/data" && (request.method === "GET" || request.method === "PUT")) {
+    const userId = await accountIdFromRequest(request, env);
+    if (!userId) return json({ error: "Sessão inválida ou expirada. Entre novamente." }, 401, origin);
+    if (request.method === "GET") {
+      const row = await env.MEMORY_DB.prepare("SELECT tasks_json,memories_json,updated_at FROM user_data WHERE user_id = ?").bind(userId).first();
+      if (!row) return json({ tasks:[], memories:[], updatedAt:null }, 200, origin);
+      let tasks=[], memories=[];
+      try { tasks=JSON.parse(row.tasks_json || "[]"); } catch {}
+      try { memories=JSON.parse(row.memories_json || "[]"); } catch {}
+      return json({ tasks:Array.isArray(tasks)?tasks:[], memories:Array.isArray(memories)?memories:[], updatedAt:row.updated_at }, 200, origin);
+    }
+    let body;
+    try { body = await request.json(); } catch { return json({ error: "Dados inválidos." }, 400, origin); }
+    const tasks = Array.isArray(body?.tasks) ? body.tasks.slice(0,500).filter(t => t && typeof t.title === "string").map(t => ({id:String(t.id || crypto.randomUUID()).slice(0,100),title:t.title.slice(0,500),done:Boolean(t.done),createdAt:String(t.createdAt || "").slice(0,40)})) : [];
+    const memories = Array.isArray(body?.memories) ? body.memories.slice(0,1000).filter(m => m && typeof m.content === "string").map(m => ({id:String(m.id || crypto.randomUUID()).slice(0,100),title:String(m.title || "Memória").slice(0,160),content:m.content.slice(0,5000),createdAt:String(m.createdAt || "").slice(0,40)})) : [];
+    const updatedAt = new Date().toISOString();
+    await env.MEMORY_DB.prepare("INSERT INTO user_data (user_id,tasks_json,memories_json,updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET tasks_json=excluded.tasks_json,memories_json=excluded.memories_json,updated_at=excluded.updated_at").bind(userId,JSON.stringify(tasks),JSON.stringify(memories),updatedAt).run();
+    return json({ ok:true, updatedAt, taskCount:tasks.length, memoryCount:memories.length }, 200, origin);
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -29,6 +125,11 @@ export default {
 
     if (origin && origin !== ALLOWED_ORIGIN) {
       return json({ error: "Origem não permitida." }, 403, origin);
+    }
+
+    if (url.pathname.startsWith("/api/auth/") || url.pathname === "/api/data") {
+      const accountResponse = await handleAccountApi(request, env, url, origin);
+      if (accountResponse) return accountResponse;
     }
 
     if (url.pathname === "/health" && request.method === "GET") {
