@@ -5,7 +5,7 @@
   const KEYS = { tasks: 'yggdrasil.tasks.v2', memory: 'yggdrasil.memory.v2', chat: 'yggdrasil.chat.v2', endpoint: 'yggdrasil.endpoint.v2', model: 'yggdrasil.model.v1' };
   const read = (key, fallback) => { try { const value = JSON.parse(localStorage.getItem(key)); return value ?? fallback; } catch { return fallback; } };
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
-  let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openai/gpt-6.1-sol', taskFilter = 'all', listening = false, recognition = null;
+  let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openrouter/free', taskFilter = 'all', listening = false, recognition = null;
   const titles = { assistant: 'Assistente', tasks: 'Tarefas', memory: 'Memória', settings: 'Conexões' };
   let toastTimer;
   function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800); }
