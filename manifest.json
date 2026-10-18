@@ -5,8 +5,17 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#080d12",
   "theme_color": "#080d12",
   "lang": "pt-BR",
-  "icons": []
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "./icons/yggdrasil.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
