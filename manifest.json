@@ -1,21 +1,58 @@
 {
-  "name": "Yggdrasil — Espaço pessoal",
+  "name": "YGGDRASIL — Personal Intelligence",
   "short_name": "Yggdrasil",
-  "description": "Assistente pessoal, tarefas e memória local",
+  "description": "Assistente pessoal com memória, tarefas e funcionamento offline.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#080d12",
   "theme_color": "#080d12",
   "lang": "pt-BR",
-  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "./icons/yggdrasil.svg",
+      "src": "./assets/yggdrasil-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Assistente",
+      "short_name": "Assistente",
+      "url": "./?view=assistant",
+      "icons": [
+        {
+          "src": "./assets/yggdrasil-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Tarefas",
+      "short_name": "Tarefas",
+      "url": "./?view=tasks",
+      "icons": [
+        {
+          "src": "./assets/yggdrasil-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Memória",
+      "short_name": "Memória",
+      "url": "./?view=memory",
+      "icons": [
+        {
+          "src": "./assets/yggdrasil-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
   ]
-}
+}\n
