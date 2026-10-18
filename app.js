@@ -7,7 +7,7 @@
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
   let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openrouter/free', taskFilter = 'all', listening = false, recognition = null;
   const titles = { assistant: 'Assistente', tasks: 'Tarefas', memory: 'Memória', settings: 'Conexões' };
-  let toastTimer;
+  let toastTimer, pendingTaskTitle = '';
   function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800); }
   function safeDate(value) { try { return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }); } catch { return ''; } }
   function escapeText(text) { return String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -66,6 +66,27 @@
   }
   function handleLocalCommand(text) {
     const lower = text.toLocaleLowerCase('pt-BR').trim();
+    if (pendingTaskTitle && /^(sim|s|confirmo|pode salvar|salva|salvar|isso)$/i.test(lower)) {
+      const title = pendingTaskTitle; pendingTaskTitle = '';
+      tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
+      if (!write(KEYS.tasks, tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
+      renderTasks(); return 'Tarefa salva: "' + title + '". Você pode acompanhá-la na aba Tarefas.';
+    }
+    if (pendingTaskTitle && /^(não|nao|não precisa|nao precisa|cancela|cancelar)$/i.test(lower)) {
+      pendingTaskTitle = ''; return 'Certo, não salvei a tarefa.';
+    }
+    const naturalTask = text.trim().match(/^(?:preciso|tenho que|devo|quero|não posso esquecer de|nao posso esquecer de|lembrar de|me lembra de)\s+(.+?)[.!?]*$/i);
+    if (naturalTask && !/^(de ajuda|entender|saber|perguntar|conversar|explicar|descobrir|ver como|falar com você|uma coisa)$/i.test(naturalTask[1].trim())) {
+      pendingTaskTitle = naturalTask[1].trim().replace(/[.!?]+$/, '');
+      return 'Entendi. Posso registrar "' + pendingTaskTitle + '" como tarefa. Responda "sim" para salvar ou "não" para cancelar.';
+    }
+    const naturalMemory = text.trim().match(/^(?:guarde que|lembre-se que|lembre que|salve que|anote que)\s+(.+?)[.!?]*$/i);
+    if (naturalMemory) {
+      const content = naturalMemory[1].trim().replace(/[.!?]+$/, '');
+      memories.push({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: content.slice(0,60), content, createdAt: new Date().toISOString() });
+      if (!write(KEYS.memory, memories)) return 'Não consegui guardar essa informação neste dispositivo.';
+      renderMemories(); return 'Anotado na memória deste dispositivo: "' + content.slice(0,180) + '".';
+    }
     const projectMemory = text.match(/\bmeu projeto pessoal se chama\s+(.+?)[.!?]*$/i);
     if (projectMemory) {
       const projectName = projectMemory[1].trim().replace(/[.!?]+$/, '');
