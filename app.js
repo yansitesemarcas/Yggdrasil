@@ -7,7 +7,11 @@
   const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { toast('O armazenamento está cheio ou indisponível. Exporte os dados e tente novamente.'); return false; } };
   let tasks = read(KEYS.tasks, []), memories = read(KEYS.memory, []), history = read(KEYS.chat, []), endpoint = localStorage.getItem(KEYS.endpoint) || '', selectedModel = localStorage.getItem(KEYS.model) || 'openrouter/free', taskFilter = 'all', listening = false, recognition = null;
   const titles = { assistant: 'Assistente', tasks: 'Tarefas', memory: 'Memória', settings: 'Conexões' };
-  let toastTimer, pendingTaskTitle = '', awaitingTaskTitle = false;
+  let toastTimer, pendingTaskTitle = localStorage.getItem('yggdrasil.pending-task-title.v1') || '', awaitingTaskTitle = localStorage.getItem('yggdrasil.awaiting-task.v1') === 'true';
+  function persistPendingTask() { try { if (pendingTaskTitle) localStorage.setItem('yggdrasil.pending-task-title.v1', pendingTaskTitle); else localStorage.removeItem('yggdrasil.pending-task-title.v1'); localStorage.setItem('yggdrasil.awaiting-task.v1', awaitingTaskTitle ? 'true' : 'false'); } catch {} }
+  function memoryTokens(value) { return String(value || '').toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').match(/[a-z0-9]{3,}/g) || []; }
+  function findRelevantMemories(query, limit = 5) { const terms = [...new Set(memoryTokens(query).filter(w => !['sobre','isso','essa','esse','para','como','qual','quais','lembra','lembrar','memoria','minhas','meus','voce','quero','preciso','quando','onde','porque','fazer','coisa','mais','muito'].includes(w)))]; return memories.map(m => { const words = new Set(memoryTokens(m.title + ' ' + m.content)); const overlap = terms.filter(t => words.has(t)).length; return { memory:m, score: overlap + (terms.length && terms.some(t => memoryTokens(m.title).includes(t)) ? 1.5 : 0) }; }).filter(x => x.score > 0).sort((a,b) => b.score-a.score || String(b.memory.createdAt).localeCompare(String(a.memory.createdAt))).slice(0,limit).map(x => x.memory); }
+  function renderMemorySearch() { const input = $('#memorySearch'); if (!input) return; const query = input.value.trim().toLocaleLowerCase('pt-BR'); $('#memoryList .memory-card').forEach(card => { card.hidden = !!query && !card.textContent.toLocaleLowerCase('pt-BR').includes(query); }); }
   function toast(text) { const el = $('#toast'); el.textContent = text; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2800); }
   function safeDate(value) { try { return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }); } catch { return ''; } }
   function escapeText(text) { return String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -69,18 +73,18 @@
     if (awaitingTaskTitle && /^(sim|s|confirmo|pode salvar|salva|salvar|isso)$/i.test(lower)) {
       if (!pendingTaskTitle) return 'Ainda não tenho um título definido. Escreva a tarefa, por exemplo: "Preciso estudar matemática amanhã".';
 
-      const title = pendingTaskTitle; pendingTaskTitle = '';
+      const title = pendingTaskTitle; pendingTaskTitle = ''; awaitingTaskTitle = false; persistPendingTask();
       tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
       if (!write(KEYS.tasks, tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
       awaitingTaskTitle = false; renderTasks(); return 'Tarefa salva: "' + title + '". Você pode acompanhá-la na aba Tarefas.';
     }
     if (awaitingTaskTitle && /^(não|nao|não precisa|nao precisa|cancela|cancelar)$/i.test(lower)) {
-      pendingTaskTitle = ''; awaitingTaskTitle = false; return 'Certo, não salvei a tarefa.';
+      pendingTaskTitle = ''; awaitingTaskTitle = false; persistPendingTask(); return 'Certo, não salvei a tarefa.';
     }
     const naturalTask = text.trim().match(/^(?:(?:eu )?preciso|precisa|tenho que|devo|quero|não posso esquecer de|nao posso esquecer de|lembrar de|me lembra de|adicionar como tarefa|crie uma tarefa para)\s+(.+?)[.!?]*$/i);
     if (naturalTask && !/^(de ajuda|entender|saber|perguntar|conversar|explicar|descobrir|ver como|falar com você|uma coisa)$/i.test(naturalTask[1].trim())) {
       pendingTaskTitle = naturalTask[1].trim().replace(/[.!?]+$/, '').replace(/^estudar matemática para amanhã$/i, 'Estudar matemática amanhã');
-      awaitingTaskTitle = true;
+      awaitingTaskTitle = true; persistPendingTask();
       return 'Entendi. Posso registrar "' + pendingTaskTitle + '" como tarefa. Responda "sim" para salvar ou "não" para cancelar.';
     }
     const naturalMemory = text.trim().match(/^(?:guarde que|lembre-se que|lembre que|salve que|anote que)\s+(.+?)[.!?]*$/i);
@@ -99,7 +103,7 @@
       renderMemories(); return 'Memória guardada neste dispositivo: ' + content;
     }
     if (/^(?:criar|adicionar|nova|nova tarefa)(?: uma)? tarefa(?: pessoal)?$/.test(lower)) {
-      pendingTaskTitle = ''; awaitingTaskTitle = true;
+      pendingTaskTitle = ''; awaitingTaskTitle = true; persistPendingTask();
       return 'Vamos criar uma tarefa. Escreva o que precisa fazer, por exemplo: "Preciso estudar matemática amanhã". Vou mostrar o título e pedir confirmação antes de salvar.';
     }
     const addTask = lower.match(/^(?:criar|adicionar|registrar) tarefa\s*:\s*(.+)$/i);
@@ -108,7 +112,7 @@
       if (!title) return 'Escreva o nome da tarefa depois dos dois-pontos.';
       tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title: title.slice(0,180), done: false, createdAt: new Date().toISOString() });
       if (!write(KEYS.tasks,tasks)) return 'Não consegui guardar a tarefa neste dispositivo.';
-      awaitingTaskTitle = false; renderTasks(); return 'Tarefa criada: "' + title + '". Ela já aparece na aba Tarefas.';
+      awaitingTaskTitle = false; pendingTaskTitle = ''; persistPendingTask(); renderTasks(); return 'Tarefa criada: "' + title + '". Ela já aparece na aba Tarefas.';
     }
     if (/^(?:listar|mostrar|ver) tarefas$|^minhas tarefas$|^quais são minhas tarefas\??$/.test(lower)) {
       const pending = tasks.filter(t => !t.done);
@@ -166,7 +170,7 @@
       if (!endpoint) { await new Promise(resolve => setTimeout(resolve, 180)); addMessage(localAnswer(message)); }
       else {
         const prior = history.filter(m => m.role === 'user' || m.role === 'assistant').slice(-12,-1).map(m => ({ role: m.role, content: m.content }));
-        const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ message, history:prior, model:selectedModel, context: $('#shareContext')?.checked ? { tasks: tasks.filter(t => !t.done).slice(0,20).map(t => ({ title: t.title, done: false })), memories: memories.slice(-10).map(m => ({ title: m.title, content: m.content.slice(0,500) })) } : null }) });
+        const response = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ message, history:prior, model:selectedModel, context: $('#shareContext')?.checked ? { tasks: tasks.filter(t => !t.done).slice(0,20).map(t => ({ title: t.title, done: false })), memories: [...new Map([...findRelevantMemories(message,5), ...memories.slice(-5).reverse()].map(m => [m.id,m])).values()].slice(0,10).map(m => ({ title: m.title, content: m.content.slice(0,500) })) } : null }) });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Servidor respondeu com status ' + response.status + '.');
         if (typeof data.reply !== 'string' || !data.reply.trim()) throw new Error('O servidor não retornou o campo "reply".');
@@ -190,6 +194,7 @@
   $('#taskForm').addEventListener('submit', e => { e.preventDefault(); const input = $('#taskInput'), title = input.value.trim(); if (!title) return; tasks.unshift({ id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title, done:false, createdAt:new Date().toISOString() }); if(write(KEYS.tasks,tasks)){ input.value=''; renderTasks(); toast('Tarefa adicionada.'); } });
   $$('.filter').forEach(btn => btn.addEventListener('click', () => { taskFilter=btn.dataset.filter; $$('.filter').forEach(b=>b.classList.toggle('active',b===btn)); renderTasks(); }));
   $('#clearDone').addEventListener('click', () => { tasks=tasks.filter(t=>!t.done); write(KEYS.tasks,tasks); renderTasks(); toast('Tarefas concluídas removidas.'); });
+  $('#memorySearch')?.addEventListener('input', renderMemorySearch);
   $('#memoryForm').addEventListener('submit', e => { e.preventDefault(); const title=$('#memoryTitle').value.trim(), content=$('#memoryContent').value.trim(); if(!title||!content)return; memories.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),title,content,createdAt:new Date().toISOString()}); if(write(KEYS.memory,memories)){ $('#memoryTitle').value=''; $('#memoryContent').value=''; renderMemories(); toast('Nota guardada neste dispositivo.'); } });
   function refreshEndpointUI() { const share=$('#shareContext'); if(share) share.checked=localStorage.getItem(KEYS.shareContext)==='true'; $('#apiUrl').value=endpoint; if ($('#modelSelect')) $('#modelSelect').value=selectedModel; const configured=!!endpoint; $('#apiBadge').textContent=configured?'CONFIGURADO':'NÃO CONFIGURADO'; $('#apiBadge').style.color=configured?'var(--cyan)':'var(--gold)'; $('#chatMode').textContent=configured?'IA CONFIGURADA':'MODO LOCAL'; $('#connectionLabel').textContent=configured?'Endpoint configurado':'Modo local ativo'; $('#topStatus').textContent=configured?'Conexão configurada':'Operação local'; }
   $('#shareContext')?.addEventListener('change', e => { try { localStorage.setItem(KEYS.shareContext, e.target.checked ? 'true' : 'false'); } catch {} toast(e.target.checked ? 'Contexto pessoal será enviado nas próximas mensagens.' : 'Envio de contexto pessoal desativado.'); });
@@ -209,5 +214,11 @@
     try{recognition.start();}catch{toast('Aguarde um instante e tente novamente.');}
   });
   renderTasks(); renderMemories(); renderHistory(); refreshEndpointUI();
-  if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  if (awaitingTaskTitle && pendingTaskTitle) toast('Há uma tarefa aguardando sua confirmação: ' + pendingTaskTitle);
+  let installPrompt = null;
+  const installButton = $('#installAppButton');
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); installPrompt = event; if (installButton) { installButton.hidden = false; installButton.textContent = 'Instalar app'; } });
+  window.addEventListener('appinstalled', () => { installPrompt = null; if (installButton) installButton.hidden = true; toast('YGGDRASIL instalado no dispositivo.'); });
+  installButton?.addEventListener('click', async () => { if (installPrompt) { installPrompt.prompt(); const choice = await installPrompt.userChoice; if (choice?.outcome === 'accepted') toast('Instalação iniciada.'); installPrompt = null; if (installButton) installButton.hidden = true; } else { toast('No Chrome: toque em ⋮ e escolha “Instalar aplicativo” ou “Adicionar à tela inicial”.'); } });
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(() => {});
 })();
