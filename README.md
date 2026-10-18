@@ -1,47 +1,40 @@
 # Yggdrasil
 
-Assistente pessoal pensado primeiro para celular, com interface em português, conversa por texto, ditado por voz, tarefas, memória local e uma conexão opcional com um servidor de IA.
+Assistente pessoal pensado primeiro para celular, com interface em português, conversa por texto, ditado por voz, tarefas, memória local e backend opcional com seleção de modelos de IA.
 
 **Repositório independente:** `yansitesemarcas/Yggdrasil`. Não faz parte do site Yan Serra Sites e Marcas.
 
-## O que funciona na interface publicada
+## Modelos de IA
 
-- Interface responsiva para Android e desktop.
-- Tarefas com criação, conclusão, filtros e exclusão.
-- Memória de notas local, com criação e exclusão.
-- Histórico de conversa salvo no navegador.
-- Exportação de tarefas, notas e histórico em JSON.
-- Ditado por voz quando o navegador oferece suporte e concede permissão.
-- Modo local sem servidor, com comandos básicos para registrar tarefas e notas.
-- Campo para configurar e testar um endpoint de IA hospedado separadamente.
-- PWA com manifesto e cache básico para abrir a interface offline depois da primeira visita.
+O backend aceita OpenRouter como gateway multimodelo, permitindo escolher modelos de diferentes fornecedores usando uma única chave de API. A lista inicial da interface inclui modelos OpenAI, Anthropic, Google, DeepSeek, Z.ai e a opção de roteamento gratuito do OpenRouter. Catálogos e identificadores mudam; confirme os IDs disponíveis na conta do provedor.
 
-## Publicação no GitHub Pages
+- A chave fica como variável secreta no servidor, nunca no JavaScript público.
+- OpenRouter pode encaminhar para modelos pagos ou gratuitos conforme a opção escolhida e a disponibilidade.
+- Modelos pagos exigem crédito/faturamento na conta; integrar uma API não torna seu uso gratuito.
+- Como alternativa simples, o backend aceita `OPENAI_API_KEY` e usa `OPENAI_MODEL` diretamente, mas a seleção multimodelo exige `OPENROUTER_API_KEY`.
 
-O site está configurado para publicar a raiz da branch `main`:
+## Configuração do backend
 
-`https://yansitesemarcas.github.io/Yggdrasil/`
+O GitHub Pages hospeda apenas os arquivos estáticos. O servidor em `server/` precisa ser implantado em um serviço que execute Node.js e que permita configurar variáveis de ambiente.
 
-O GitHub Pages **não executa código Node.js** e não hospeda o endpoint de chat. O modo local funciona sem backend; respostas generativas exigem que o servidor abaixo seja hospedado em um serviço compatível com Node.js, fora do GitHub Pages. Não é necessário usar Vercel.
+Variáveis recomendadas no serviço de hospedagem:
 
-## Servidor de IA
+- `OPENROUTER_API_KEY`: chave da conta OpenRouter (recomendado para vários modelos).
+- `OPENROUTER_MODEL`: modelo padrão, por exemplo `openai/gpt-6.1-sol`.
+- `ALLOWED_MODELS`: lista opcional de IDs permitidos separados por vírgula. Se omitida, usa a lista inicial do servidor.
+- `ALLOWED_ORIGIN`: origem do front-end; padrão `https://yansitesemarcas.github.io`.
+- `PORT`: porta definida pelo serviço de hospedagem.
 
-O código do servidor está em `server/`. Requer Node.js 20 ou superior.
+Comandos locais:
 
-1. Hospede a pasta `server` em um serviço Node.js compatível (por exemplo, Render ou Railway).
-2. Configure as variáveis de ambiente no serviço:
-   - `OPENAI_API_KEY`: chave secreta do provedor, apenas no servidor.
-   - `OPENAI_MODEL`: modelo habilitado na sua conta (padrão: `gpt-4o-mini`).
-   - `ALLOWED_ORIGIN`: origem do site, por exemplo `https://yansitesemarcas.github.io`.
-   - `PORT`: normalmente fornecida pelo serviço.
-3. Copie a URL HTTPS do endpoint `/api/chat`.
-4. No site, abra **Conexões**, cole a URL completa e salve. Use **Testar conexão**.
+```bash
+cd server
+npm install
+npm start
+```
 
-A chave da API nunca deve ser colocada no frontend, no repositório público ou no navegador. O uso do provedor pode gerar custos.
+O endpoint de chat será `/api/chat` e o teste de saúde será `/health`. Configure a URL completa de `/api/chat` na aba **Conexões** da interface.
 
-## Limitações honestas
+## Estado atual
 
-- Memória, tarefas e histórico ficam no armazenamento local daquele navegador/dispositivo; não são sincronizados entre dispositivos nem criptografados por esta versão.
-- O modo local não é um modelo de IA. Ele executa comandos simples e informa quando não há backend conectado.
-- Ditado depende do suporte do navegador e de permissão para microfone.
-- A configuração do endpoint não hospeda o servidor automaticamente: ela apenas conecta a interface a um servidor que já esteja funcionando.
+A interface, tarefas e memória local rodam no navegador. O chat com modelos externos só funciona depois de hospedar o backend, adicionar a chave de API como segredo e configurar a URL do endpoint na interface. Não inclua chaves no repositório ou no GitHub Pages.
