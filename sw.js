@@ -1,5 +1,5 @@
-const CACHE = 'yggdrasil-static-v6';
-const ASSETS = ['./', './index.html', './style.css?v=20261018-2', './app.js?v=20261018-7', './manifest.json'];
+const CACHE = 'yggdrasil-static-v7';
+const ASSETS = ['./', './index.html', './style.css?v=20261018-3', './app.js?v=20261018-8', './manifest.json', './icons/yggdrasil.svg'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', event => {
